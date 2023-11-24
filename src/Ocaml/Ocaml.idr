@@ -1,6 +1,7 @@
 module Ocaml.Ocaml
 
 import Idris.Driver
+import Idris.Syntax
 
 import Compiler.Common
 import Compiler.CompileExpr
@@ -9,13 +10,13 @@ import Core.Context
 import Core.Context.Log as Log
 import Core.Directory
 
-import Utils.Path
+import Libraries.Utils.Path
 
 import Data.List
-import Data.Strings
-import Data.StringMap
+import Data.String
+import Libraries.Data.StringMap
 import Data.SortedSet
-import Data.NameMap
+import Libraries.Data.NameMap
 import Data.Maybe
 import Data.Vect
 
@@ -83,7 +84,7 @@ mlDef name (MkNmError msg) = do
     body <- mlExpr msg
     pure $ header ++ body ++ "\n\n"
 
-writeModule : (path : String) -> (mod : Module) -> Core ()
+writeModule : (path : String) -> (mod : Ocaml.Modules.Module) -> Core ()
 writeModule path mod = do
     
     Right mlFile <- coreLift $ openFile path WriteTruncate
@@ -101,7 +102,7 @@ writeModule path mod = do
     
     first <- coreLift $ newIORef True
     defsWritten <- coreLift $ newIORef (the Int 0)
-    for_ mod.defs \(n, d) => do
+    Ocaml.Utils.for_ mod.defs \(n, d) => do
         def <- mlDef n d
         if def == ""
             then pure ()
@@ -129,15 +130,17 @@ writeModule path mod = do
 ||| OCaml implementation of the `compileExpr` interface.
 compileExpr : CompilerCommands c => (comp : c) ->
               Ref Ctxt Defs ->
+              Ref Syn SyntaxInfo ->
               (tmpDir : String) ->
               (outputDir : String) ->
               ClosedTerm ->
               (outfile : String) ->
               Core (Maybe String)
-compileExpr comp c tmpDir outputDir tm outfile = do
+compileExpr comp c s tmpDir outputDir tm outfile = do
     let appDirRel = outfile ++ "_app" -- relative to build dir
     let appDirGen = outputDir </> appDirRel -- relative to here
-    coreLift $ mkdirAll appDirGen
+    Right () <- coreLift $ mkdirAll appDirGen
+        | Left err => throw (InternalError ("Can't mkdir" ++ appDirGen))
     Just cwd <- coreLift currentDir
         | Nothing => throw (InternalError "Can't get current directory")
 
@@ -147,7 +150,7 @@ compileExpr comp c tmpDir outputDir tm outfile = do
     let modRelFileName = \ns,ext => appDirRel </> ns <.> ext
     let modAbsFileName = \ns,ext => cwd </> outputDir </> modRelFileName ns ext
     
-    cData <- getCompileData Cases tm
+    cData <- getCompileData False Cases tm
     let ndefs = flap (namedDefs cData) \(name, _, def) => (name, def)
     let mainExpr = forget (mainExpr cData)
 
@@ -156,7 +159,7 @@ compileExpr comp c tmpDir outputDir tm outfile = do
 
     let mods = modules ndefs
 
-    modules <- for (moduleDefs mods) $ \mod => do
+    modules <- Ocaml.Utils.for (moduleDefs mods) $ \mod => do
         let modName = mod.name
         let path = modAbsFileName modName "ml"
         writeModule path mod
@@ -168,7 +171,7 @@ compileExpr comp c tmpDir outputDir tm outfile = do
         let mainImports = flap (StringMap.keys mods.defsByNamespace) $ \n =>
                 fromMaybe n $ StringMap.lookup n mods.namespaceMapping
                 
-        let mainFnName = UN "main"
+        let mainFnName = UN (Basic "main")
         let mainDefs = [(mainFnName, MkNmFun [] mainExpr)]
         let mainMLPath = modAbsFileName "Main" "ml"
         let mainModule = MkModule "Main" mainDefs (SortedSet.fromList mainImports)
@@ -188,11 +191,11 @@ compileExpr comp c tmpDir outputDir tm outfile = do
 
     -- TMP HACK
     -- .a and .h files
-    coreLift $ system $ unwords
-        ["cp", "~/.idris2/idris2-0.2.1/lib/*", appDirGen]
+    _ <- coreLift $ system $ unwords
+        ["cp", "~/.idris2/idris2-0.6.0/lib/*", appDirGen]
 
-    coreLift $ system $ "cp ~/.idris2/idris2-0.2.1/support/ocaml/ocaml_rts.o " ++ appDirGen
-    coreLift $ system $ "cp ~/.idris2/idris2-0.2.1/support/ocaml/OcamlRts.ml " ++ appDirGen
+    _ <- coreLift $ system $ "cp ~/.idris2/idris2-0.6.0/support/ocaml/ocaml_rts.o " ++ appDirGen
+    _ <- coreLift $ system $ "cp ~/.idris2/idris2-0.6.0/support/ocaml/OcamlRts.ml " ++ appDirGen
 
     let cmdBuildRts = compileRTSCmd comp "OcamlRts"
         cmdBuildMods = concat $ [compileModuleCmd comp ns | ns <- modules]
@@ -205,10 +208,10 @@ compileExpr comp c tmpDir outputDir tm outfile = do
         
         cmdFull = cmdBuildRts ++ cmdBuildMods ++ cmdLink
 
-    for_ cmdFull $ \cmd => do
+    Ocaml.Utils.for_ cmdFull $ \cmd => do
         let cmd' = "cd " ++ appDirGen ++ " && " ++ cmd
         ok <- the (Core Int) . coreLift $ system cmd'
-        Log.log "codegen.ocaml.build" 2 $ "Running command `" ++ cmd ++ "`"
+        --Log.log "codegen.ocaml.build" 2 $ ("Running command `" ++ cmd ++ "`")
         if ok /= 0
             then throw . InternalError $ "Command `" ++ cmd ++ "` failed."
             else pure ()
@@ -218,18 +221,19 @@ compileExpr comp c tmpDir outputDir tm outfile = do
 ||| OCaml implementation of the `executeExpr` interface.
 executeExpr : CompilerCommands c => (comp : c) ->
               Ref Ctxt Defs ->
+              Ref Syn SyntaxInfo ->
               (tmpDir : String) ->
               ClosedTerm ->
               Core ()
-executeExpr comp c tmpDir tm = do
-    Just bin <- compileExpr comp c tmpDir tmpDir tm "tmpocaml"
+executeExpr comp c s tmpDir tm = do
+    Just bin <- compileExpr comp c s tmpDir tmpDir tm "tmpocaml"
         | Nothing => throw (InternalError "compileExpr returned Nothing")
-    coreLift $ system bin
+    _ <- coreLift $ system bin
     pure ()
 
 export
 codegenOcaml : CompilerCommands c => (comp : c) -> Codegen
-codegenOcaml comp = MkCG (compileExpr comp) (executeExpr comp)
+codegenOcaml comp = MkCG (compileExpr comp) (executeExpr comp) Nothing Nothing
 
 main : IO ()
 main =

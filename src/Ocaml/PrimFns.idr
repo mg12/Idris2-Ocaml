@@ -20,7 +20,7 @@ bits32Bound : String -> String
 bits32Bound s = fnCall "ensure_bits32" [s]
 
 
-castFnForTy : Constant -> Core (String -> String)
+castFnForTy : PrimType -> Core (String -> String)
 castFnForTy IntType = pure asInt
 castFnForTy IntegerType = pure asBint
 castFnForTy Bits8Type = pure asBits8
@@ -36,7 +36,7 @@ binFn : (castFn : String -> String) -> (Vect 2 String -> String) -> Vect 2 Strin
 binFn castFn f args = pure . mlRepr . f $ map castFn args
 
 
-addFn : Constant -> Vect 2 String -> Core String
+addFn : PrimType -> Vect 2 String -> Core String
 addFn ty args = do
     fn <- case ty of
         IntType => pure $ binFn asInt \[a, b] => binOp "+" a b
@@ -49,7 +49,7 @@ addFn ty args = do
         _ => throw . InternalError $ "Unsupported add implementation for type " ++ show ty
     fn args
 
-subFn : Constant -> Vect 2 String -> Core String
+subFn : PrimType -> Vect 2 String -> Core String
 subFn ty args = do
     fn <- case ty of
         IntType => pure $ binFn asInt \[a, b] => binOp "-" a b
@@ -62,7 +62,7 @@ subFn ty args = do
         _ => throw . InternalError $ "Unsupported sub implementation for type " ++ show ty
     fn args
 
-mulFn : Constant -> Vect 2 String -> Core String
+mulFn : PrimType -> Vect 2 String -> Core String
 mulFn ty args = do
     fn <- case ty of
         IntType => pure $ binFn asInt \[a, b] => binOp "*" a b
@@ -75,7 +75,7 @@ mulFn ty args = do
         _ => throw . InternalError $ "Unsupported mul implementation for type " ++ show ty
     fn args
 
-divFn : Constant -> Vect 2 String -> Core String
+divFn : PrimType -> Vect 2 String -> Core String
 divFn ty args = do
     fn <- case ty of
         IntType => pure $ binFn asInt \[a, b] => binOp "/" a b
@@ -88,7 +88,7 @@ divFn ty args = do
         _ => throw . InternalError $ "Unsupported div implementation for type " ++ show ty
     fn args
 
-modFn : Constant -> Vect 2 String -> Core String
+modFn : PrimType -> Vect 2 String -> Core String
 modFn ty args = do
     fn <- case ty of
         IntType => pure $ binFn asInt \[a, b] => binOp "mod" a b
@@ -100,7 +100,7 @@ modFn ty args = do
         _ => throw . InternalError $ "Unsupported mod implementation for type " ++ show ty
     fn args
 
-shiftLFn : Constant -> Vect 2 String -> Core String
+shiftLFn : PrimType -> Vect 2 String -> Core String
 shiftLFn ty args = do
     fn <- case ty of
         IntType => pure $ binFn asInt \[a, b] => binOp "lsl" a b
@@ -112,7 +112,7 @@ shiftLFn ty args = do
         _ => throw . InternalError $ "Unsupported shiftL implementation for type " ++ show ty
     fn args
 
-shiftRFn : Constant -> Vect 2 String -> Core String
+shiftRFn : PrimType -> Vect 2 String -> Core String
 shiftRFn ty args = do
     fn <- case ty of
         IntType => pure $ binFn asInt \[a, b] => binOp "lsr" a b
@@ -124,7 +124,7 @@ shiftRFn ty args = do
         _ => throw . InternalError $ "Unsupported shiftR implementation for type " ++ show ty
     fn args
 
-castToInt : Constant -> String -> Core String
+castToInt : PrimType -> String -> Core String
 castToInt ty a = do
     case ty of
         IntegerType => pure . mlRepr $ fnCall "cast_bint_int" [asBint a]
@@ -137,7 +137,7 @@ castToInt ty a = do
         CharType => pure . mlRepr $  fnCall "int_of_char" [asChar a]
         _ => throw . InternalError $ "Unsupported cast to Int implementation for type " ++ show ty
 
-castToInteger : Constant -> String -> Core String
+castToInteger : PrimType -> String -> Core String
 castToInteger ty a = do
     case ty of
         IntType => pure . mlRepr $ fnCall "Z.of_int" [asInt a]
@@ -151,7 +151,7 @@ castToInteger ty a = do
         _ => throw . InternalError $ "Unsupported cast to Integer implementation for type " ++ show ty
 
 
-castToBits8 : Constant -> String -> Core String
+castToBits8 : PrimType -> String -> Core String
 castToBits8 ty a = do
     case ty of
         IntType => pure . mlRepr $ fnCall "cast_int_bits8" [asInt a]
@@ -161,7 +161,7 @@ castToBits8 ty a = do
         Bits64Type => pure . mlRepr $ fnCall "cast_bits64_bits8" [asBits64 a]
         _ => throw . InternalError $ "Unsupported cast to Bits8 implementation for type " ++ show ty
 
-castToBits16 : Constant -> String -> Core String
+castToBits16 : PrimType -> String -> Core String
 castToBits16 ty a = do
     case ty of
         IntType => pure . mlRepr $ fnCall "cast_int_bits16" [asInt a]
@@ -171,7 +171,7 @@ castToBits16 ty a = do
         Bits64Type => pure . mlRepr $ fnCall "cast_bits64_bits8" [asBits64 a]
         _ => throw . InternalError $ "Unsupported cast to Bits16 implementation for type " ++ show ty
 
-castToBits32 : Constant -> String -> Core String
+castToBits32 : PrimType -> String -> Core String
 castToBits32 ty a = do
     case ty of
         IntType => pure . mlRepr $ fnCall "cast_int_bits32" [asInt a]
@@ -181,7 +181,7 @@ castToBits32 ty a = do
         Bits64Type => pure . mlRepr $ fnCall "cast_bits64_bits32" [asBits64 a]
         _ => throw . InternalError $ "Unsupported cast to Bits32 implementation for type " ++ show ty
 
-castToBits64 : Constant -> String -> Core String
+castToBits64 : PrimType -> String -> Core String
 castToBits64 ty a = do
     case ty of
         IntType => pure . mlRepr $ fnCall "Int64.of_int" [asInt a]
@@ -191,7 +191,7 @@ castToBits64 ty a = do
         Bits32Type => pure . mlRepr $ fnCall "Int64.of_int" [asBits32 a]
         _ => throw . InternalError $ "Unsupported cast to Bits64 implementation for type " ++ show ty
 
-castToString : Constant -> String -> Core String
+castToString : PrimType -> String -> Core String
 castToString ty a = do
     case ty of
         IntType => pure . mlRepr $ fnCall "string_of_int" [asInt a]
@@ -204,7 +204,7 @@ castToString ty a = do
         CharType => pure . mlRepr $ fnCall "OcamlRts.String.of_char" [asChar a]
         _ => throw . InternalError $ "Unsupported cast to String implementation for type " ++ show ty
 
-castToDouble : Constant -> String -> Core String
+castToDouble : PrimType -> String -> Core String
 castToDouble ty a = do
     case ty of
         IntType => pure . mlRepr $ fnCall "float_of_int" [asInt a]

@@ -12,11 +12,11 @@ import Core.Context
 
 import Debug.Trace
 
-import Data.NameMap
+import Libraries.Data.NameMap
 import Data.Vect
 import Data.List
 import Data.List1
-import Data.Strings
+import Data.String
 
 idrisSupport : String -> String
 idrisSupport s = "OcamlRts.C.Lib_libidris2_support." ++ s
@@ -28,6 +28,8 @@ implNames : List (String, String)
 implNames = [
     ("Data.Strings.fastConcat", "OcamlRts.Bytes.concat"),
     ("Prelude.Types.fastPack", "OcamlRts.String.pack"),
+
+    ("Prelude.IO.prim__putStr", "OcamlRts.C.Lib_libidris2_support.idris2_putStr"),
     
     ("Data.Buffer.prim__newBuffer", idrisSupport "idris2_newBuffer"),
     ("Data.Buffer.prim__bufferSize", idrisSupport "idris2_getBufferSize"),

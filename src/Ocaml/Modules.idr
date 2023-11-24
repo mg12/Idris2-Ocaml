@@ -6,9 +6,9 @@ import Compiler.CompileExpr
 import Core.TT
 
 import Data.List
-import Data.Strings
-import Data.StringMap
-import Data.NameMap
+import Data.String
+import Libraries.Data.StringMap
+import Libraries.Data.NameMap
 import Data.SortedSet
 import Data.Vect
 
@@ -234,11 +234,11 @@ mutual
     findExpr (NmLam fc x expr) = findExpr expr
     findExpr (NmLet fc x rhs expr) = findExpr rhs <+> findExpr expr
     findExpr (NmApp fc base args) = findExpr base <+> concatMap findExpr args
-    findExpr (NmCon fc name tag args) = concatMap findExpr args
+    findExpr (NmCon fc name coninfo tag args) = concatMap findExpr args
     findExpr (NmOp fc fn args) = concatMap findExpr args
     findExpr (NmExtPrim fc name args) = concatMap findExpr args
-    findExpr (NmForce fc expr) = findExpr expr
-    findExpr (NmDelay fc expr) = findExpr expr
+    findExpr (NmForce fc lazyreason expr) = findExpr expr
+    findExpr (NmDelay fc lazyreason expr) = findExpr expr
     findExpr (NmConCase fc expr alts def) = findExpr expr <+> concatMap findConAlt alts <+> concatMap findExpr def
     findExpr (NmConstCase fc expr alts def) = findExpr expr <+> concatMap findConstAlt alts <+> concatMap findExpr def
     findExpr (NmPrimVal fc val) = SortedSet.empty
@@ -246,7 +246,7 @@ mutual
     findExpr (NmCrash fc x) = SortedSet.empty
     
     findConAlt : NamedConAlt -> SortedSet String
-    findConAlt (MkNConAlt _ _ _ rhs) = findExpr rhs
+    findConAlt (MkNConAlt _ _ _ _ rhs) = findExpr rhs
     
     findConstAlt : NamedConstAlt -> SortedSet String
     findConstAlt (MkNConstAlt _ rhs) = findExpr rhs

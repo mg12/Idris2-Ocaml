@@ -1,22 +1,28 @@
 PREFIX ?= $(HOME)/.idris2
 IDRIS2 ?= idris2
 
-# IDRIS2_SOURCE_PATH =
+ifeq (,$(shell which $(IDRIS2)))
+$(error IDRIS2 should point to my/path/to/idris2)
+endif
+
+ifndef IDRIS2_SOURCE_PATH
+$(error IDRIS2_SOURCE_PATH containing ./support/refc/ is not defined)
+endif
 
 MAJOR=0
-MINOR=2
-PATCH=1
+MINOR=6
+PATCH=0
 
 CFLAGS = -fPIE -Wno-pointer-sign -Wno-discarded-qualifiers
 
 export IDRIS2_VERSION := ${MAJOR}.${MINOR}.${PATCH}
 
 .PHONY: all
-all: build install-support
+all: build install-support test
 
 .PHONY: support
 support:
-	cd support/ && cc $(CFLAGS) -O2 -c ocaml_rts.c -I `ocamlc -where` -I ../$(IDRIS2_SOURCE_PATH)/support/c/
+	cd support/ && cc $(CFLAGS) -O2 -c ocaml_rts.c -I `ocamlc -where`  -I ../$(IDRIS2_SOURCE_PATH)/support/c/ -I ../$(IDRIS2_SOURCE_PATH)/support/refc/
 
 .PHONY: install-support
 install-support: support
@@ -33,3 +39,8 @@ stop-instances:
 .PHONY: build
 build: stop-instances
 	$(IDRIS2) --build idris2-ocaml.ipkg
+
+.PHONY: test
+test:
+	./build/exec/idris2-ocaml --cg ocaml-native $(IDRIS2_SOURCE_PATH)/tests/idris2/api/api001/Hello.idr -o ./test-hello-idris-cg-ocaml-native
+	./build/exec/test-hello-idris-cg-ocaml-native

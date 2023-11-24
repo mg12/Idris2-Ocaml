@@ -11,7 +11,7 @@
 #include <time.h>
 
 #include "getline.h"
-#include "idris_buffer.h"
+#include "idris_memory.h"
 #include "idris_directory.h"
 #include "idris_file.h"
 #include "idris_net.h"
@@ -685,7 +685,7 @@ CAMLprim value ml_idris2_eof(value file) {
 
 CAMLprim value ml_idris2_fileAccessTime(value file) {
 	CAMLparam1(file);
-	const int result = idris2_fileAccessTime((FILE *)file);
+	const int result = idris2_filetimeAccessTimeSec(idris2_fileTime((FILE *)file));
 	CAMLreturn(Val_int(result));
 }
 
@@ -697,7 +697,7 @@ CAMLprim value ml_idris2_fileModifiedTime(value file) {
 
 CAMLprim value ml_idris2_fileStatusTime(value file) {
 	CAMLparam1(file);
-	const int result = idris2_fileStatusTime((FILE *)file);
+	const int result = idris2_filetimeStatusTimeSec(idris2_fileTime((FILE *)file));
 	CAMLreturn(Val_int(result));
 }
 
@@ -1032,14 +1032,14 @@ CAMLprim value ml_idris2_getBufferString(value src, value ofs, value max_width)
 CAMLprim value ml_idrnet_malloc(value size)
 {
 	CAMLparam1(size);
-	void * result = idrnet_malloc(Val_int(size));
+	void * result = idris2_malloc(Val_int(size));
 	CAMLreturn((value) result);
 }
 
 CAMLprim value ml_idrnet_free(value buffer)
 {
 	CAMLparam1(buffer);
-	idrnet_free((void *) buffer);
+	idris2_free((void *) buffer);
 	CAMLreturn(Val_int(0));
 }
 

@@ -1,10 +1,10 @@
 module Ocaml.CompileCommands
 
-import Utils.Path
+import Libraries.Utils.Path
 
 import Data.List
 import Data.Maybe
-import Data.Strings
+import Data.String
 
 
 public export

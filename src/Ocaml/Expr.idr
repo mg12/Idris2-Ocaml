@@ -13,10 +13,10 @@ import Core.Context
 
 import Data.List
 import Data.Maybe
-import Data.NameMap
+import Libraries.Data.NameMap
 import Data.Vect
 
-import Utils.Hex
+import Protocol.Hex
 
 import Ocaml.PrimFns
 import Ocaml.Utils
@@ -46,16 +46,17 @@ mlIdent s =
     okchar : Char -> String
     okchar c = if isAlphaNum c
                   then cast c
-                  else "_" ++ the (String) (asHex (cast {to=Int} c)) ++ "_"
+                  else "_" ++ the (String) (asHex (cast {to=Bits64} c)) ++ "_"
 
 export
 mlName : Name -> String
 mlName (NS ns x) = "ns__" ++ showNSWithSep "'" ns ++ "_" ++ mlName x
-mlName (UN x) = "un__" ++ mlIdent x
+mlName (UN (Basic x)) = "un__" ++ mlIdent x
+mlName (UN Underscore) = "un__" ++ mlIdent "_"
 mlName (MN x y) = "mn__" ++ mlIdent x ++ "_" ++ show y
 mlName (PV x y) = "pat__" ++ mlName x ++ "_" ++ show y
 mlName (DN x y) = mlName y
-mlName (RF n) = "rf__" ++ mlIdent n
+mlName (UN (Field n)) = "rf__" ++ mlIdent n
 mlName (Nested (i, x) n) = "n__" ++ show i ++ "_" ++ show x ++ "_" ++ mlName n
 mlName (CaseBlock x y) = "case__" ++ mlIdent x ++ "_" ++ show y
 mlName (WithBlock x y) = "with__" ++ mlIdent x ++ "_" ++ show y
@@ -76,7 +77,7 @@ mlChar c = "\'" ++ (okchar c) ++ "\'"
                 '\n' => "\\n"
                 '\t' => "\\t"
                 '\b' => "\\b"
-                other => "\\x" ++ leftPad '0' 2 (asHex (cast {to=Int} c))
+                other => "\\x" ++ leftPad '0' 2 (asHex (cast {to=Bits64} c))
 
 mlString : String -> String
 mlString s = "\"" ++ (concatMap okchar (unpack s)) ++ "\""
@@ -92,7 +93,7 @@ mlString s = "\"" ++ (concatMap okchar (unpack s)) ++ "\""
                             '\n' => "\\n"
                             '\t' => "\\t"
                             '\b' => "\\b"
-                            other => "\\u{" ++ asHex (cast {to=Int} c) ++ "}"
+                            other => "\\u{" ++ asHex (cast {to=Bits64} c) ++ "}"
 
 
 ||| Generate OCaml code for constant values
@@ -173,14 +174,14 @@ mutual
         let call = fnCall (fnCall "Obj.magic" [base']) args'
         pure $ call
     
-    mlExpr (NmCon fc name Nothing args) = do
+    mlExpr (NmCon fc name coninfo Nothing args) = do
         let name' = mlRepr . mlString $ show name
         args' <- traverse mlExpr args
         
         pure $ mlBlock 0 (name' :: args')
         
-    mlExpr (NmCon fc name (Just tag) []) = pure . mlRepr $ show tag
-    mlExpr (NmCon fc name (Just tag) args) = do
+    mlExpr (NmCon fc name coninfo (Just tag) []) = pure . mlRepr $ show tag
+    mlExpr (NmCon fc name coninfo (Just tag) args) = do
         args' <- traverse mlExpr args
         pure $ mlBlock tag args'
     
@@ -199,11 +200,11 @@ mutual
                 coreLift $ putStrLn $ "   args: " ++ show args
                 pure $ mlRepr "()"
     
-    mlExpr (NmForce fc expr) = do
+    mlExpr (NmForce fc lazyreason expr) = do
         expr' <- mlExpr expr
         pure $ fnCall "Lazy.force" [fnCall "as_lazy" [expr']]
     
-    mlExpr (NmDelay fc expr) = do
+    mlExpr (NmDelay fc lazyreason expr) = do
         expr' <- mlExpr expr
         pure . mlRepr $ fnCall "lazy" [expr']
     
@@ -219,18 +220,18 @@ mutual
                 pure $ "| _ -> " ++ e'
                 
         let (matchEx, pats, fieldOffset) = case alts of
-                (MkNConAlt name Nothing _ _)::_ =>
+                (MkNConAlt name coninfo Nothing _ _)::_ =>
                     let matchEx = fnCall "as_string" [fnCall "Obj.field" ["match_val'", "0"]] in
-                    let pats = flap alts \(MkNConAlt name _ _ _) => mlString (show name) in
+                    let pats = flap alts \(MkNConAlt name coninfo _ _ _) => mlString (show name) in
                     (matchEx, pats, the Nat 1)
                 _ =>
                     let matchEx = fnCall "get_tag" ["match_val'"] in
-                    let pats = flap alts \(MkNConAlt _ tag _ _) => show $ fromMaybe 0 tag in
+                    let pats = flap alts \(MkNConAlt _ coninfo tag _ _) => show $ fromMaybe 0 tag in
                     (matchEx, pats, the Nat 0)
         
         let header = "match " ++ matchEx ++ " with "
         
-        arms <- for (pats `zip` alts) \(pat, MkNConAlt name tag names e) => do
+        arms <- Ocaml.Utils.for (pats `zip` alts) \(pat, MkNConAlt name coninfo tag names e) => do
         
             let numNames = length names
 
@@ -262,7 +263,7 @@ mutual
                         e' <- mlExpr e
                         pure $ "| _ -> " ++ e'
         
-        arms <- for alts \(MkNConstAlt c exp) => do
+        arms <- Ocaml.Utils.for alts \(MkNConstAlt c exp) => do
             pat <- mlPrimValPattern c
             exp' <- mlExpr exp
             pure $ "| " ++ pat ++ " -> (" ++ exp' ++ ")"

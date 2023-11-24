@@ -22,7 +22,7 @@ for : List a -> (a -> Core b) -> Core (List b)
 for [] f = pure []
 for (x::xs) f = do
     x' <- f x
-    rest <- for xs f
+    rest <- Ocaml.Utils.for xs f
     pure (x' :: rest)
 
 export
@@ -30,7 +30,7 @@ for_ : List a -> (a -> Core ()) -> Core ()
 for_ [] f = pure ()
 for_ (x::xs) f = do
     () <- f x
-    for_ xs f
+    Ocaml.Utils.for_ xs f
 
 export
 parens : String -> String
